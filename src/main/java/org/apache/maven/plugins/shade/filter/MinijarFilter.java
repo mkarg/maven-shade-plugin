@@ -118,6 +118,9 @@ public class MinijarFilter
             removeSpecificallyIncludedClasses( project,
                 simpleFilters == null ? Collections.<SimpleFilter>emptyList() : simpleFilters );
             removeServices( project, cp );
+
+            // TODO we need an explicit "keep this" entry in the POM
+            removeClass( cp, "org.glassfish.json.JsonProviderImpl" );
         }
     }
 
