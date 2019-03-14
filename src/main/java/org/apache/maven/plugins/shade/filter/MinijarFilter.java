@@ -20,6 +20,7 @@ package org.apache.maven.plugins.shade.filter;
  */
 
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.util.IOUtil;
@@ -27,15 +28,20 @@ import org.vafer.jdependency.Clazz;
 import org.vafer.jdependency.Clazzpath;
 import org.vafer.jdependency.ClazzpathUnit;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.zip.ZipException;
 
 /**
@@ -111,7 +117,59 @@ public class MinijarFilter
             removable.removeAll( artifactUnit.getTransitiveDependencies() );
             removeSpecificallyIncludedClasses( project,
                 simpleFilters == null ? Collections.<SimpleFilter>emptyList() : simpleFilters );
+            removeServices( project, cp );
         }
+    }
+
+    private void removeServices( final MavenProject project, final Clazzpath cp )
+    {
+        try
+        {
+            for ( final String fileName : project.getRuntimeClasspathElements() )
+            {
+                try ( final JarFile jar = new JarFile( fileName ) )
+                {
+                    for ( final Enumeration<JarEntry> entries = jar.entries(); entries.hasMoreElements(); )
+                    {
+                        final JarEntry jarEntry = entries.nextElement();
+                        if ( !jarEntry.getName().startsWith( "META-INF/services/" ) )
+                        {
+                            continue;
+                        }
+
+                        try ( final BufferedReader bufferedReader =
+                           new BufferedReader( new InputStreamReader( jar.getInputStream( jarEntry ) ) ) )
+                        {
+                            for ( String className = bufferedReader.readLine(); className != null;
+                                className = bufferedReader.readLine() )
+                            {
+                               log.info( className + " was not removed because it is a service" );
+                               removeClass( cp , className );
+                            }
+                        }
+                        catch ( final IOException e )
+                        {
+                            log.warn( e.getMessage() );
+                        }
+                    }
+                }
+                catch ( final IOException e )
+                {
+                    log.warn( e.getMessage() );
+                }
+            }
+        }
+        catch ( final DependencyResolutionRequiredException e )
+        {
+            log.warn( e.getMessage() );
+        }
+    }
+
+    private void removeClass( final Clazzpath clazzPath, final String className )
+    {
+        final Clazz clazz = clazzPath.getClazz( className );
+        removable.remove( clazz );
+        removable.removeAll( clazz.getTransitiveDependencies() );
     }
 
     private ClazzpathUnit addDependencyToClasspath( Clazzpath cp, Artifact dependency )
