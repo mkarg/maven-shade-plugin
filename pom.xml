@@ -29,6 +29,7 @@
     <relativePath>../../pom/maven/maven-plugins/pom.xml</relativePath>
   </parent>
 
+  <groupId>eu.headcrashing.maven</groupId>
   <artifactId>maven-shade-plugin</artifactId>
   <version>3.2.2-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
